@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────
+# BrowserStack SDK Configuration
+# ─────────────────────────────────────────────────────────────
+# This file is consumed by the BrowserStack SDK when running:
+#   browserstack-sdk pytest tests/test_elpais_scraper.py -v -s
+#
+# The SDK intercepts webdriver.Chrome() calls in conftest.py
+# and routes them to the BrowserStack Automate grid automatically.
+# ─────────────────────────────────────────────────────────────
+
+# Credentials (reads from environment variables)
+userName: ${BROWSERSTACK_USERNAME}
+accessKey: ${BROWSERSTACK_ACCESS_KEY}
+
+# Project metadata — visible in the BrowserStack Automate dashboard
+projectName: "El País Opinion Scraper"
+buildName: "Cross-Browser Scraping Test"
+buildIdentifier: "#${BUILD_NUMBER}"
+
+# ─────────────────────────────────────────────────────────────
+# Platform Matrix: 5 platforms × 1 = 5 total parallel threads
+#
+# Coverage rationale:
+#   Desktop: Chrome (Chromium), Safari (WebKit), Firefox (Gecko)
+#   Mobile:  iPhone (iOS Safari), Samsung Galaxy (Android Chrome)
+#   → 3 browser engines + 2 mobile OS families
+# ─────────────────────────────────────────────────────────────
+parallelsPerPlatform: 1
+
+platforms:
+  # Desktop 1: Chrome on Windows 11 (~65% desktop market share)
+  - os: Windows
+    osVersion: 11
+    browserName: Chrome
+    browserVersion: latest
+
+  # Desktop 2: Safari on macOS Sonoma (WebKit engine, macOS-only)
+  - os: OS X
+    osVersion: Sonoma
+    browserName: Safari
+    browserVersion: latest
+
+  # Desktop 3: Firefox on Windows 11 (Gecko engine diversity)
+  - os: Windows
+    osVersion: 11
+    browserName: Firefox
+    browserVersion: latest
+
+  # Mobile 1: iPhone 15 with Safari (iOS premium segment)
+  - deviceName: iPhone 15
+    osVersion: 17
+    browserName: Safari
+    deviceOrientation: portrait
+
+  # Mobile 2: Samsung Galaxy S24 with Chrome (Android market leader)
+  - deviceName: Samsung Galaxy S24
+    osVersion: 14.0
+    browserName: chrome
+    deviceOrientation: portrait
+
+# ─────────────────────────────────────────────────────────────
+# Debugging & Logging
+# ─────────────────────────────────────────────────────────────
+browserstackLocal: false
+debug: true
+networkLogs: true
+consoleLogs: info
