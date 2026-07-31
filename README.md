@@ -1,209 +1,177 @@
-# El País Opinion Section Scraper & Cross-Browser Test Suite
+# El País Opinion Scraper & BrowserStack Cross-Browser Test Suite
 
-[![CI](https://github.com/browserstack/elpais-scraper-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/browserstack/elpais-scraper-demo/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![Selenium 4.20+](https://img.shields.io/badge/selenium-4.20+-green.svg)](https://www.selenium.dev/)
+[![pytest 8.0+](https://img.shields.io/badge/pytest-8.0+-yellow.svg)](https://docs.pytest.org/)
 [![BrowserStack SDK](https://img.shields.io/badge/BrowserStack-SDK-orange.svg)](https://www.browserstack.com/)
 
-A production-grade Python & Selenium automation framework built as part of the **BrowserStack Customer Engineering** implementation review.
-
-This solution navigates the Spanish news portal **El País**, scrapes articles from the **Opinión** section, downloads cover images, translates headlines from Spanish to English using a resilient dual-engine translation service, and performs word frequency analysis across all translated headers. The test executes across **5 parallel threads** spanning desktop and mobile browsers on the **BrowserStack Automate** cloud grid.
+Automated Selenium test suite that scrapes opinion articles from Spanish news outlet *El País*, downloads cover images, translates headlines to English, analyzes word frequencies, and runs in parallel across 5 desktop and mobile browser configurations on BrowserStack.
 
 ---
 
-## 📐 Architecture & Key Design Decisions
+## Features
 
-The framework follows clean architecture, SOLID principles, and the **Page Object Model (POM)** design pattern to ensure high maintainability, readability, and reliability.
+- **Automated Web Scraping**: Navigates the *El País* Opinion section, verifies Spanish language loading, and extracts the first 5 articles (title, body paragraphs, cover image).
+- **Resilient Page Object Model**: Encapsulates page logic with explicit waits, stale element recovery, and multi-selector fallbacks for dynamic DOM elements.
+- **Dual Translation Engine**: Translates Spanish headlines to English via RapidAPI (Rapid Translate API) with zero-config fallback to `deep-translator`.
+- **Frequency Analysis**: Normalizes text, filters common English stopwords, and calculates word frequencies occurring more than twice across translated titles.
+- **Parallel Cloud Execution**: Runs concurrently across 5 desktop and mobile browser environments using the BrowserStack Python SDK.
 
-```mermaid
-graph TD
-    A[test_elpais_scraper.py] --> B[OpinionPage]
-    A --> C[ArticlePage]
-    A --> D[TranslationService]
-    A --> E[TextAnalyzer]
-    A --> F[utils.download_image]
+---
 
-    B --> G[BasePage]
-    C --> G[BasePage]
+## Architecture
 
-    D --> H[Rapid Translate API / RapidAPI]
-    D -. Fallback .-> I[deep-translator]
+The framework decouples page interaction, business logic, data modeling, and test orchestration.
 
-    G --> J[Selenium WebDriver / BrowserStack SDK]
+![Architecture Diagram](docs/images/architecture.png)
+
+```
+Test Runner (pytest / BrowserStack SDK)
+ ├── Page Object Model (BasePage -> OpinionPage, ArticlePage)
+ ├── Services (TranslationService, TextAnalyzer)
+ └── Data & Utilities (Article dataclass, Image Downloader)
 ```
 
-### Technical Highlights
-- **Page Object Model (POM)**: Isolates DOM locators and page interactions from test assertion logic (`OpinionPage`, `ArticlePage`, `BasePage`).
-- **Resilient Locators & Fallbacks**: Primary CSS selectors target exact semantic elements, backed by fallbacks to prevent test flakiness if website markup updates.
-- **Dual-Engine Translation**:
-  - **Primary**: Rapid Translate Multi Traduction API (RapidAPI) — a robust, structured REST API.
-  - **Zero-Config Fallback**: `deep-translator` (Google Translate wrapper) activates automatically if no API key is provided or if network limits occur.
-- **BrowserStack SDK Integration**: Zero-code-change cloud parallelization handled natively by `browserstack.yml`. Sessions report real-time status and names (`setSessionName`, `setSessionStatus`) to the Automate dashboard.
-- **Robust Exception & Cookie Handling**: Handles GDPR cookie banners across viewports, gracefully logs paywalled articles, and streams cover image downloads without test interruption.
-
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 browserstack-assgn/
-├── .github/
-│   └── workflows/
-│       └── ci.yml                  # GitHub Actions CI workflow (linting + unit tests)
-├── downloads/
-│   └── .gitkeep                    # Directory for downloaded article cover images
-├── pages/
-│   ├── __init__.py
-│   ├── base_page.py                # Core Selenium helper methods & cookie banner handling
-│   ├── opinion_page.py             # Opinion landing page interaction & article link extraction
-│   └── article_page.py             # Full article page title, content, & image extraction
-├── services/
-│   ├── __init__.py
-│   ├── translator.py               # Dual-engine Spanish-to-English translation service
-│   └── text_analyzer.py            # Word frequency analyzer with stopword filtering
-├── tests/
-│   ├── __init__.py
-│   ├── test_elpais_scraper.py      # E2E cross-browser scraping & analysis test
-│   └── test_text_analyzer.py       # Fast unit test suite for text analysis logic
-├── .env.example                    # Environment variable configuration template
-├── .gitignore                      # Git exclusion rules
-├── browserstack.yml                # BrowserStack SDK 5-platform parallel matrix
-├── conftest.py                     # Pytest driver fixture setup
-├── models.py                       # Article dataclass model
-├── pytest.ini                      # Pytest CLI configuration & logging settings
-├── requirements.txt                # Project dependencies
-├── utils.py                        # Resilient image downloader utility
-└── README.md                       # Repository documentation
+├── .github/workflows/ci.yml   # GitHub Actions CI (linting & unit tests)
+├── docs/images/               # Documentation screenshots and assets
+├── downloads/                 # Directory for scraped cover images
+├── pages/                     # Page Object Model abstractions
+│   ├── base_page.py           # Explicit waits, scrolling, cookie handler
+│   ├── opinion_page.py        # Opinion section listing & language check
+│   └── article_page.py        # Synchronized article detail page extraction
+├── services/                  # Business logic (no Selenium dependency)
+│   ├── translator.py          # RapidAPI client with fallback translator
+│   └── text_analyzer.py       # Regex tokenization & stopword filtering
+├── tests/                     # Test suite
+│   ├── test_elpais_scraper.py # E2E cross-browser scraping test
+│   └── test_text_analyzer.py  # Unit tests for text analyzer
+├── browserstack.yml           # BrowserStack SDK 5-platform matrix
+├── conftest.py                # Pytest driver fixture
+├── models.py                  # Article dataclass model
+├── pytest.ini                 # Pytest CLI configuration & logging settings
+├── requirements.txt           # Python dependencies
+├── utils.py                   # Image downloader with retries & backoff
+└── README.md                  # Project documentation
 ```
 
 ---
 
-## ⚡ Quick Start
+## Setup
 
-### 1. Prerequisites
-- Python 3.10 or higher
-- Chrome browser (for local testing; Selenium 4.20+ manages driver binaries automatically)
-- A BrowserStack Account (Username & Access Key)
+### Prerequisites
+- Python 3.10+
+- BrowserStack account (Username and Access Key)
 
-### 2. Installation
-Clone the repository and install dependencies:
-
+### Installation
 ```bash
-git clone https://github.com/your-username/browserstack-assgn.git
-cd browserstack-assgn
+git clone https://github.com/TechySan031/browserstack-elpais-opinion-scraper.git
+cd browserstack-elpais-opinion-scraper
 
 # Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install requirements
+# Install dependencies
 pip install -r requirements.txt
 pip install browserstack-sdk
 ```
 
-### 3. Environment Configuration
-Copy the example `.env` file and set your credentials:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
+### Environment Configuration
+Copy `.env.example` to `.env` and set your BrowserStack credentials:
 ```env
-BROWSERSTACK_USERNAME=your_browserstack_username
-BROWSERSTACK_ACCESS_KEY=your_browserstack_key
-RAPIDAPI_KEY=your_optional_rapidapi_key  # Optional: falls back to deep-translator if omitted
-HEADLESS=false                           # Set to true for headless local runs
+BROWSERSTACK_USERNAME=your_username
+BROWSERSTACK_ACCESS_KEY=your_key
+RAPIDAPI_KEY=optional_rapidapi_key  # Falls back to deep-translator if omitted
+HEADLESS=false                      # Set true for headless local runs
 ```
 
 ---
 
-## 🧪 Running the Tests
+## Local Execution
 
-### Fast Unit Tests (No Selenium / API required)
+Run unit tests:
 ```bash
 pytest tests/test_text_analyzer.py -v
 ```
 
-### Local Execution (Single Browser)
-Run the E2E test locally using Chrome:
+Run E2E test locally using Chrome:
 ```bash
 pytest tests/test_elpais_scraper.py -v -s
 ```
-*To run headlessly locally, set `HEADLESS=true pytest tests/test_elpais_scraper.py -v -s`.*
 
 ---
 
-## ☁️ Cross-Browser Execution on BrowserStack
+## BrowserStack Execution
 
-The test suite is configured to execute across **5 parallel threads** covering major desktop and mobile browser engines.
-
-### Platform Matrix (`browserstack.yml`)
-
-| Platform | OS / Device | Browser Engine | Orientation | Rationale |
-| :--- | :--- | :--- | :--- | :--- |
-| **Desktop 1** | Windows 11 | Chrome (Latest) | N/A | Dominant Desktop Chromium Engine |
-| **Desktop 2** | macOS Sonoma | Safari (Latest) | N/A | Apple WebKit Engine |
-| **Desktop 3** | Windows 11 | Firefox (Latest) | N/A | Mozilla Gecko Engine |
-| **Mobile 1** | iPhone 15 (iOS 17) | Safari Mobile | Portrait | iOS WebKit Mobile Standard |
-| **Mobile 2** | Samsung Galaxy S24 (Android 14) | Chrome Mobile | Portrait | Android Mobile Standard |
-
-### Executing on BrowserStack Grid
-Prepend your pytest execution with `browserstack-sdk`:
-
+Execute across 5 parallel platforms via BrowserStack SDK:
 ```bash
 browserstack-sdk pytest tests/test_elpais_scraper.py -v -s
 ```
 
-### Verification & Dashboard
-1. Log into your [BrowserStack Automate Dashboard](https://automate.browserstack.com/).
-2. Locate the build **"Cross-Browser Scraping Test"**.
-3. Observe **5 parallel sessions** executing simultaneously.
-4. Verify session names ("El País Opinion Scraper") and pass/fail statuses updated dynamically via `browserstack_executor`.
+---
+
+## BrowserStack Validation
+
+Tests executed concurrently across 5 desktop and mobile browser environments on BrowserStack Automate:
+
+![BrowserStack Build Summary](docs/images/browserstack-build.png)
+
+| Platform | OS / Device | Browser Engine | Status |
+|---|---|---|---|
+| **Desktop 1** | Windows 11 | Chrome (Latest) | ✅ Passed |
+| **Desktop 2** | macOS Sonoma | Safari (Latest) | ✅ Passed |
+| **Desktop 3** | Windows 11 | Firefox (Latest) | ✅ Passed |
+| **Mobile 1** | iPhone 15 (iOS 17) | Safari Mobile | ✅ Passed |
+| **Mobile 2** | Samsung Galaxy S24 (Android 14) | Chrome Mobile | ✅ Passed |
+
+Full session recordings, network logs, console logs, and performance metrics for each session are available on the [BrowserStack Automate Dashboard](docs/images/browserstack-dashboard.png).
+
+![BrowserStack Session Detail](docs/images/browserstack-session.png)
 
 ---
 
-## 📊 Sample Execution Output
+## Design Decisions
+
+- **Zero-Code-Change SDK Parallelization**: Utilized `browserstack.yml` to define platform matrices natively, eliminating boilerplate `webdriver.Remote` capabilities from test code.
+- **Strict DOM Synchronization**: `ArticlePage.navigate()` waits for `document.readyState == 'complete'`, target URL path matching, and headline visibility before extraction, preventing stale element state across navigations.
+- **Resilient Multi-Selector Fallbacks**: Primary CSS classes are backed by semantic HTML tag fallbacks (`h1.a_t` -> `h1`, `.a_c p` -> `article p`) to handle layout variations across editorial categories.
+- **Defensive API Design**: `TranslationService` attempts RapidAPI with retries before using `deep-translator`, ensuring tests execute reliably even without an API key.
+
+---
+
+## Results
 
 ```text
-10:15:02 [INFO] ============================================================
-10:15:02 [INFO] STEP 1: Navigate to El País Opinion section
-10:15:02 [INFO] ============================================================
-10:15:05 [INFO] Cookie consent accepted via: button[aria-label='Aceptar y cerrar']
-10:15:05 [INFO] ✓ Page confirmed to be in Spanish
-10:15:05 [INFO] ============================================================
-10:15:05 [INFO] STEP 3: Fetch first 5 articles from Opinion section
-10:15:05 [INFO] ============================================================
-10:15:06 [INFO] Found 5 articles to process
-...
-10:15:20 [INFO] ============================================================
-10:15:20 [INFO] STEP 5: Translate article titles to English
-10:15:20 [INFO] ============================================================
-10:15:21 [INFO] 🌐 ES: Desafío humanitario y diplomático
-10:15:21 [INFO]    EN: Humanitarian and diplomatic challenge
-...
-10:15:22 [INFO] ============================================================
-10:15:22 [INFO] STEP 6: Analyze word frequency in translated headers
-10:15:22 [INFO] ============================================================
-10:15:22 [INFO] Words repeated more than twice across all headers:
-10:15:22 [INFO]   challenge            → 3 occurrences
-10:15:22 [INFO] ============================================================
-10:15:22 [INFO] ✅ SUMMARY
-10:15:22 [INFO] ============================================================
-10:15:22 [INFO] Articles scraped:    5
-10:15:22 [INFO] Articles translated: 5
-10:15:22 [INFO] Repeated words:      1
+==================================== SUMMARY ====================================
+Articles scraped:    5
+Articles translated: 5
+Images downloaded:   5 (article_1.jpg to article_5.jpg)
+Repeated words (>2): 0 (or list of words if threshold met)
+=================================================================================
+PASSED
 ```
 
 ---
 
-## 🛠️ GitHub Actions CI/CD Integration
+## Future Improvements
 
-The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) that triggers on push and pull requests to validate code formatting and run unit tests automatically.
+- Add `mypy` static type checking to CI pipeline.
+- Implement HTML report generation with embedded screenshots for failed assertions.
+- Extend mobile gesture support for infinite-scroll article feeds.
 
 ---
 
-## 👤 Author & Support
+## Tech Stack
 
-Developed for the **BrowserStack Customer Engineering** implementation review.
-For questions regarding this framework or live POC demonstrations, please contact the candidate.
+- **Language**: Python 3.10+
+- **Automation**: Selenium WebDriver 4.20+
+- **Test Framework**: pytest 8.0+
+- **Cloud Grid**: BrowserStack Automate (BrowserStack SDK)
+- **Translation**: RapidAPI / deep-translator
+- **CI/CD**: GitHub Actions
