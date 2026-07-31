@@ -21,54 +21,91 @@ Automated Selenium test suite that scrapes opinion articles from Spanish news ou
 
 ## Architecture
 
-The framework is structured into distinct layers separating test orchestration, page interactions, business services, infrastructure, and shared components.
+### 1. High-Level System Architecture
 
 ```mermaid
-classDiagram
-    direction TB
+flowchart TD
+    subgraph Test_Suite["Test Suite"]
+        TS["test_elpais_scraper.py"]
+        UT["test_text_analyzer.py"]
+    end
 
-    namespace Testing_Layer {
-        class PytestSuite["test_elpais_scraper.py"]
-        class UnitTests["test_text_analyzer.py"]
-    }
+    subgraph POM["Page Object Model"]
+        BP["BasePage"]
+        OP["OpinionPage"]
+        AP["ArticlePage"]
+    end
 
-    namespace Page_Objects_Layer {
-        class BasePage["BasePage"]
-        class OpinionPage["OpinionPage"]
-        class ArticlePage["ArticlePage"]
-    }
+    subgraph Services["Business Services"]
+        TR["TranslationService\n(RapidAPI + deep-translator)"]
+        TA["TextAnalyzer"]
+    end
 
-    namespace Services_Layer {
-        class TranslationService["TranslationService\n(RapidAPI + deep-translator fallback)"]
-        class TextAnalyzer["TextAnalyzer"]
-    }
+    subgraph Shared["Shared Components"]
+        AM["Article Model"]
+        ID["Image Downloader"]
+    end
 
-    namespace Infrastructure_Layer {
-        class SeleniumWebDriver["Selenium WebDriver"]
-        class BrowserStackSDK["BrowserStack SDK"]
-        class BrowserStackCloud["BrowserStack Cloud Grid"]
-    }
+    subgraph Infrastructure["Infrastructure & Execution"]
+        SW["Selenium WebDriver"]
+        SDK["BrowserStack SDK"]
+        BG["BrowserStack Cloud Grid"]
+    end
 
-    namespace Shared_Components {
-        class ArticleModel["Article Dataclass"]
-        class ImageDownloader["utils.download_image"]
-    }
+    %% POM Inheritance
+    OP -.->|inherits| BP
+    AP -.->|inherits| BP
 
-    PytestSuite --> OpinionPage : Uses
-    PytestSuite --> ArticlePage : Uses
-    PytestSuite --> TranslationService : Uses
-    PytestSuite --> TextAnalyzer : Uses
-    PytestSuite --> ImageDownloader : Uses
+    %% Test Dependencies
+    TS --> OP
+    TS --> AP
+    TS --> TR
+    TS --> TA
+    TS --> ID
+    TS --> AM
+    UT --> TA
 
-    OpinionPage --|> BasePage : Inherits
-    ArticlePage --|> BasePage : Inherits
-
-    BasePage --> SeleniumWebDriver : Controls
-    SeleniumWebDriver --> BrowserStackSDK : Intercepted by
-    BrowserStackSDK --> BrowserStackCloud : Executes on
+    %% Execution Pipeline
+    BP --> SW
+    SW --> SDK
+    SDK --> BG
 ```
 
-*The framework follows a layered architecture based on the Page Object Model (POM), separating test orchestration, page interactions, business services, infrastructure, and shared components.*
+The high-level architecture follows a layered design based on the Page Object Model (POM) to isolate browser automation logic from business services and test orchestration. Page objects encapsulate DOM interactions, while independent service modules handle translation API queries and word frequency analysis. The infrastructure layer leverages the BrowserStack Python SDK to intercept Selenium WebDriver instances and distribute test execution across remote cloud browser grids natively.
+
+---
+
+### 2. End-to-End Execution Flow
+
+```mermaid
+flowchart TD
+    A([Start Execution]) --> B[Launch Browser Session via BrowserStack SDK]
+    B --> C[Navigate to El País Opinion Section]
+    C --> D[Dismiss GDPR Cookie Consent Banner]
+    D --> E{Verify Page is in Spanish?}
+    E -- No --> F[Fail Test: Non-Spanish Edition]
+    E -- Yes --> G[Extract First 5 Article Links from Listing]
+
+    subgraph Article_Loop["Article Processing Loop (First 5 Articles)"]
+        G --> H[Open Article Detail Page]
+        H --> I[Synchronize DOM & Validate Target URL]
+        I --> J[Extract Article Headline Title]
+        J --> K[Extract Body Text Paragraphs]
+        K --> L[Download Cover Image with Backoff Retry]
+    end
+
+    L --> M[Translate Spanish Headlines to English]
+    M --> N[Primary Engine: RapidAPI REST Endpoint]
+    N -. Fallback .-> O[Secondary Engine: deep-translator]
+
+    O & N --> P[Analyze Translated Headlines for Repeated Words]
+    P --> Q[Execute Test Assertions & Log Summary]
+    Q --> R[Update Session Status in BrowserStack Dashboard]
+    R --> S[Generate BrowserStack Build Insights & Logs]
+    S --> T([End Execution])
+```
+
+The execution flow details the sequential lifecycle of an automated scraping and analysis run from driver setup to session teardown. Synchronization barriers ensure DOM readiness before headline or body extraction, while cover image downloads execute asynchronously with retry backoffs. Following translation and frequency analysis, test results and session statuses are dynamically dispatched to the BrowserStack Automate dashboard via custom executor bindings.
 
 ---
 
