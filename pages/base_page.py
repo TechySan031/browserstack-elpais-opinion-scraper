@@ -134,9 +134,9 @@ class BasePage:
     def accept_cookies(self) -> None:
         """Dismiss the cookie consent banner if present.
 
-        El País displays a GDPR cookie banner that overlays the page
-        and blocks element interaction. This method attempts to click
-        the accept button using multiple selector strategies.
+        El País displays a GDPR cookie banner that overlays the page.
+        Uses fast non-blocking element checks across candidate locators
+        to prevent accumulated 20-second timeout delays on mobile devices.
         """
         cookie_selectors = [
             (By.ID, "didomi-notice-agree-button"),
@@ -145,15 +145,30 @@ class BasePage:
             (By.XPATH, "//button[contains(text(), 'Aceptar')]"),
         ]
 
+        # 1. Fast instant check: if banner is already visible, click immediately
         for by, locator in cookie_selectors:
             try:
-                button = WebDriverWait(self.driver, 5).until(
-                    EC.element_to_be_clickable((by, locator))
-                )
-                button.click()
-                logger.info("Cookie consent accepted via: %s", locator)
-                return
-            except (TimeoutException, NoSuchElementException):
+                elements = self.driver.find_elements(by, locator)
+                for button in elements:
+                    if button.is_displayed() and button.is_enabled():
+                        button.click()
+                        logger.info("Cookie consent accepted via instant check: %s", locator)
+                        return
+            except Exception:
                 continue
 
-        logger.info("No cookie consent banner detected (may already be accepted)")
+        # 2. Short wait (2s) in case banner is dynamically animating (e.g., mobile grid)
+        try:
+            for by, locator in cookie_selectors:
+                elements = self.driver.find_elements(by, locator)
+                if elements:
+                    button = WebDriverWait(self.driver, 2).until(
+                        EC.element_to_be_clickable((by, locator))
+                    )
+                    button.click()
+                    logger.info("Cookie consent accepted via delayed check: %s", locator)
+                    return
+        except (TimeoutException, NoSuchElementException):
+            pass
+
+        logger.info("No active cookie consent banner detected")

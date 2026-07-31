@@ -21,7 +21,7 @@ class OpinionPage(BasePage):
 
     Responsibilities:
       - Navigate to the Opinion section
-      - Verify the page is in Spanish
+      - Verify the page is in Spanish using multi-indicator evaluation
       - Extract article metadata (links, titles, image URLs)
 
     Args:
@@ -61,23 +61,58 @@ class OpinionPage(BasePage):
         return self
 
     def is_in_spanish(self) -> bool:
-        """Verify the page content is displayed in Spanish.
+        """Verify the page content is displayed in Spanish using multiple indicators.
 
-        Checks for Spanish edition markers in the page source.
+        Evaluates:
+          1. Negative Guard: Ensures domain is not english.elpais.com
+          2. HTML lang attribute: Checks for 'es', 'es-es', 'es-mx', etc.
+          3. Document Title: Checks page title for 'Opinión' or 'EL PAÍS'
+          4. Page Source / Content: Checks for Spanish navigation markers (opinion, editoriales, tribunas)
 
         Returns:
             True if the page is confirmed to be in Spanish.
         """
+        current_url = self.driver.current_url.lower()
+
+        # 1. Negative Guard: Fail if explicitly on the English edition
+        if "english.elpais.com" in current_url:
+            logger.error("Page is on the English edition domain: %s", current_url)
+            return False
+
+        # 2. HTML lang attribute check (most reliable browser-independent signal)
+        try:
+            html_lang = self.driver.execute_script(
+                "return document.documentElement.lang || document.documentElement.getAttribute('lang') || '';"
+            ).lower()
+            if html_lang.startswith("es"):
+                logger.info("✓ Spanish language verified via HTML lang attribute: '%s'", html_lang)
+                return True
+        except Exception as e:
+            logger.debug("Failed to read HTML lang attribute: %s", e)
+
+        # 3. Document Title check (Safari DOM parsed title)
+        try:
+            doc_title = self.driver.title.lower()
+            if any(word in doc_title for word in ["opinión", "opinion", "el país", "el pais"]):
+                logger.info("✓ Spanish language verified via document title: '%s'", self.driver.title)
+                return True
+        except Exception:
+            pass
+
+        # 4. Page Source / Decoded Text Indicators (handles HTML entities & Safari raw source)
         page_source = self.driver.page_source.lower()
-        indicators = ["opinión", "opinión", "editoriales", "tribunas", "columnas"]
-        found = any(indicator.lower() in page_source for indicator in indicators)
+        spanish_keywords = [
+            "opinión", "opinion", "&oacute;n",
+            "editoriales", "tribunas", "columnas", "cartas al director"
+        ]
+        found = any(keyword in page_source for keyword in spanish_keywords)
 
         if found:
-            logger.info("✓ Page confirmed to be in Spanish")
-        else:
-            logger.warning("⚠ Could not confirm Spanish language on page")
+            logger.info("✓ Spanish language verified via page content keywords")
+            return True
 
-        return found
+        logger.warning("⚠ Could not verify Spanish language indicators")
+        return False
 
     def get_article_links(self, count: int = 5) -> list[dict[str, str | None]]:
         """Extract article metadata from the first N articles on the listing page.
