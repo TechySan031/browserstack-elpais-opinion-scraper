@@ -21,16 +21,56 @@ Automated Selenium test suite that scrapes opinion articles from Spanish news ou
 
 ## Architecture
 
-The framework decouples page interaction, business logic, data modeling, and test orchestration.
+The framework is structured into distinct layers separating test orchestration, page interactions, business services, infrastructure, and shared components.
+
+```mermaid
+classDiagram
+    direction TB
+
+    namespace Testing_Layer {
+        class PytestSuite["test_elpais_scraper.py"]
+        class UnitTests["test_text_analyzer.py"]
+    }
+
+    namespace Page_Objects_Layer {
+        class BasePage["BasePage"]
+        class OpinionPage["OpinionPage"]
+        class ArticlePage["ArticlePage"]
+    }
+
+    namespace Services_Layer {
+        class TranslationService["TranslationService\n(RapidAPI + deep-translator fallback)"]
+        class TextAnalyzer["TextAnalyzer"]
+    }
+
+    namespace Infrastructure_Layer {
+        class SeleniumWebDriver["Selenium WebDriver"]
+        class BrowserStackSDK["BrowserStack SDK"]
+        class BrowserStackCloud["BrowserStack Cloud Grid"]
+    }
+
+    namespace Shared_Components {
+        class ArticleModel["Article Dataclass"]
+        class ImageDownloader["utils.download_image"]
+    }
+
+    PytestSuite --> OpinionPage : Uses
+    PytestSuite --> ArticlePage : Uses
+    PytestSuite --> TranslationService : Uses
+    PytestSuite --> TextAnalyzer : Uses
+    PytestSuite --> ImageDownloader : Uses
+
+    OpinionPage --|> BasePage : Inherits
+    ArticlePage --|> BasePage : Inherits
+
+    BasePage --> SeleniumWebDriver : Controls
+    SeleniumWebDriver --> BrowserStackSDK : Intercepted by
+    BrowserStackSDK --> BrowserStackCloud : Executes on
+```
 
 ![Architecture Diagram](docs/images/architecture.png)
 
-```
-Test Runner (pytest / BrowserStack SDK)
- ├── Page Object Model (BasePage -> OpinionPage, ArticlePage)
- ├── Services (TranslationService, TextAnalyzer)
- └── Data & Utilities (Article dataclass, Image Downloader)
-```
+*The framework follows a layered architecture based on the Page Object Model (POM), separating test orchestration, page interactions, business services, infrastructure, and shared components.*
 
 ---
 
@@ -45,7 +85,7 @@ browserstack-assgn/
 │   ├── base_page.py           # Explicit waits, scrolling, cookie handler
 │   ├── opinion_page.py        # Opinion section listing & language check
 │   └── article_page.py        # Synchronized article detail page extraction
-├── services/                  # Business logic (no Selenium dependency)
+├── services/                  # Independent business services
 │   ├── translator.py          # RapidAPI client with fallback translator
 │   └── text_analyzer.py       # Regex tokenization & stopword filtering
 ├── tests/                     # Test suite
