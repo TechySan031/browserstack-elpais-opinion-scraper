@@ -2,11 +2,6 @@
 
 Handles navigation to the Opinion section and extraction of
 article links, titles, and cover image URLs from the listing grid.
-
-Selectors verified against live DOM (July 2026):
-  - Article container: <article> tags
-  - Title link: h2.c_t > a
-  - Cover image: figure.c_m > img
 """
 
 import logging
@@ -34,10 +29,22 @@ class OpinionPage(BasePage):
     """
 
     # ── Locators ──────────────────────────────────────────
-    ARTICLE = (By.CSS_SELECTOR, "article")
-    ARTICLE_TITLE_LINK = (By.CSS_SELECTOR, "h2.c_t a")
-    ARTICLE_IMAGE = (By.CSS_SELECTOR, "figure.c_m img")
-    SECTION_HEADER = (By.CSS_SELECTOR, "h2.c_t")
+    ARTICLE_CONTAINERS = (By.CSS_SELECTOR, "article")
+
+    # Title link candidate locators within an <article> container
+    TITLE_LINK_LOCATORS = [
+        (By.CSS_SELECTOR, "h2.c_t a"),
+        (By.CSS_SELECTOR, "h2 a"),
+        (By.CSS_SELECTOR, "header h2 a"),
+        (By.CSS_SELECTOR, "h3 a"),
+    ]
+
+    # Image candidate locators within an <article> container
+    IMAGE_LOCATORS = [
+        (By.CSS_SELECTOR, "figure.c_m img"),
+        (By.CSS_SELECTOR, "figure img"),
+        (By.CSS_SELECTOR, "img"),
+    ]
 
     def __init__(self, driver: WebDriver) -> None:
         super().__init__(driver)
@@ -56,8 +63,7 @@ class OpinionPage(BasePage):
     def is_in_spanish(self) -> bool:
         """Verify the page content is displayed in Spanish.
 
-        Checks for the presence of "Opinión" in the page source,
-        which confirms the Spanish edition is loaded (not english.elpais.com).
+        Checks for Spanish edition markers in the page source.
 
         Returns:
             True if the page is confirmed to be in Spanish.
@@ -76,10 +82,7 @@ class OpinionPage(BasePage):
     def get_article_links(self, count: int = 5) -> list[dict[str, str | None]]:
         """Extract article metadata from the first N articles on the listing page.
 
-        For each article, extracts:
-          - title: The article headline text (Spanish)
-          - url: The link to the full article page
-          - image_url: The cover image URL (None if unavailable)
+        Uses fallback locator chains to guarantee extraction across different card formats.
 
         Args:
             count: Number of articles to fetch (default: 5).
@@ -87,46 +90,75 @@ class OpinionPage(BasePage):
         Returns:
             List of dicts with keys: title, url, image_url.
         """
-        articles = self.wait_for_elements(*self.ARTICLE)
+        articles = self.wait_for_elements(*self.ARTICLE_CONTAINERS)
 
         if not articles:
             logger.error("No articles found on the Opinion page")
             return []
 
-        logger.info("Found %d articles on the page, extracting first %d", len(articles), count)
+        logger.info("Found %d article cards on page, fetching first %d", len(articles), count)
 
         results = []
-        for i, article in enumerate(articles[:count]):
+        for i, article in enumerate(articles):
+            if len(results) >= count:
+                break
+
             try:
                 self.scroll_to_element(article)
 
-                # Extract title and URL from the h2 > a element
-                title_link = article.find_element(*self.ARTICLE_TITLE_LINK)
-                title = self.safe_get_text(title_link)
-                url = self.safe_get_attribute(title_link, "href")
+                # 1. Extract title link
+                title = ""
+                url = None
+                for by, locator in self.TITLE_LINK_LOCATORS:
+                    try:
+                        links = article.find_elements(by, locator)
+                        for link in links:
+                            t = self.safe_get_text(link)
+                            u = self.safe_get_attribute(link, "href")
+                            if u and u.startswith("http"):
+                                title = t
+                                url = u
+                                break
+                        if url:
+                            break
+                    except Exception:
+                        continue
 
-                # Extract cover image URL (optional — not all articles have one)
+                if not url:
+                    logger.debug("Article card %d has no valid article link, skipping", i + 1)
+                    continue
+
+                # 2. Extract cover image
                 image_url = None
-                try:
-                    img = article.find_element(*self.ARTICLE_IMAGE)
-                    image_url = self.safe_get_attribute(img, "src")
-                except Exception:
-                    logger.debug("Article %d has no cover image on listing page", i + 1)
+                for by, locator in self.IMAGE_LOCATORS:
+                    try:
+                        imgs = article.find_elements(by, locator)
+                        for img in imgs:
+                            src = self.safe_get_attribute(img, "src") or self.safe_get_attribute(img, "data-src")
+                            if src and src.startswith("http"):
+                                image_url = src
+                                break
+                        if image_url:
+                            break
+                    except Exception:
+                        continue
 
                 results.append({
-                    "title": title,
+                    "title": title or f"Article {len(results) + 1}",
                     "url": url,
                     "image_url": image_url,
                 })
 
                 logger.info(
-                    "Article %d: %s",
-                    i + 1,
-                    title[:80] + "..." if len(title) > 80 else title,
+                    "Article card %d extracted: %s (%s)",
+                    len(results),
+                    title[:60] if title else "No title",
+                    url[:60],
                 )
 
             except Exception as e:
-                logger.warning("Failed to extract article %d: %s", i + 1, e)
+                logger.warning("Failed to process article card %d: %s", i + 1, e)
                 continue
 
+        logger.info("Successfully extracted %d article links from listing", len(results))
         return results
