@@ -47,9 +47,20 @@ def driver():
     options.add_argument("--window-size=1920,1080")
 
     driver = webdriver.Chrome(options=options)
-    driver.maximize_window()
+    
+    # Safely attempt window maximization (mobile browsers on BrowserStack do not support maximize_window)
+    try:
+        driver.maximize_window()
+    except Exception:
+        pass
+
     driver.implicitly_wait(5)
 
-    yield driver
+    try:
+        yield driver
+    finally:
+        try:
+            driver.quit()
+        except Exception:
+            pass
 
-    driver.quit()
