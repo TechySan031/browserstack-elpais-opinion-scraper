@@ -68,8 +68,6 @@ classDiagram
     BrowserStackSDK --> BrowserStackCloud : Executes on
 ```
 
-![Architecture Diagram](docs/images/architecture.png)
-
 *The framework follows a layered architecture based on the Page Object Model (POM), separating test orchestration, page interactions, business services, infrastructure, and shared components.*
 
 ---
@@ -80,6 +78,8 @@ classDiagram
 browserstack-assgn/
 ├── .github/workflows/ci.yml   # GitHub Actions CI (linting & unit tests)
 ├── docs/images/               # Documentation screenshots and assets
+│   ├── browserstack-dashboard.png  # Real BrowserStack dashboard execution
+│   └── browserstack-build.png      # Real BrowserStack build analytics report
 ├── downloads/                 # Directory for scraped cover images
 ├── pages/                     # Page Object Model abstractions
 │   ├── base_page.py           # Explicit waits, scrolling, cookie handler
@@ -158,21 +158,21 @@ browserstack-sdk pytest tests/test_elpais_scraper.py -v -s
 
 ## BrowserStack Validation
 
-Tests executed concurrently across 5 desktop and mobile browser environments on BrowserStack Automate:
+Tests executed concurrently across 5 desktop and mobile browser environments on BrowserStack Automate (**Cross-Browser Scraping Test #3**):
 
-![BrowserStack Build Summary](docs/images/browserstack-build.png)
+![BrowserStack Automate Real Dashboard](docs/images/browserstack-dashboard.png)
 
 | Platform | OS / Device | Browser Engine | Status |
 |---|---|---|---|
-| **Desktop 1** | Windows 11 | Chrome (Latest) | ✅ Passed |
-| **Desktop 2** | macOS Sonoma | Safari (Latest) | ✅ Passed |
-| **Desktop 3** | Windows 11 | Firefox (Latest) | ✅ Passed |
-| **Mobile 1** | iPhone 15 (iOS 17) | Safari Mobile | ✅ Passed |
-| **Mobile 2** | Samsung Galaxy S24 (Android 14) | Chrome Mobile | ✅ Passed |
+| **Desktop 1** | Windows 11 | Firefox 153.0 | ✅ Passed (4m 07s) |
+| **Desktop 2** | Windows 11 | Chrome 150.0 | ✅ Passed (2m 46s) |
+| **Desktop 3** | macOS Sonoma | Safari 17.3 | ✅ Passed (5m 50s) |
+| **Mobile 1** | iPhone 15 (iOS 17.3) | Safari Mobile | ✅ Passed (1m 58s) |
+| **Mobile 2** | Samsung Galaxy S24 (Android 14.0) | Chrome Mobile | ✅ Passed (6m 15s) |
 
-Full session recordings, network logs, console logs, and performance metrics for each session are available on the [BrowserStack Automate Dashboard](docs/images/browserstack-dashboard.png).
+Full build analytics report and 100% stability verification from the BrowserStack Insights dashboard:
 
-![BrowserStack Session Detail](docs/images/browserstack-session.png)
+![BrowserStack Build Analytics Summary](docs/images/browserstack-build.png)
 
 ---
 
