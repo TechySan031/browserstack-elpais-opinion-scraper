@@ -46,12 +46,21 @@ def driver() -> Generator[WebDriver, None, None]:
 
     driver_instance = webdriver.Chrome(options=options)
 
-    # Safely attempt window maximization
-    # (mobile WebDrivers on BrowserStack do not support maximize_window)
-    try:
-        driver_instance.maximize_window()
-    except Exception:
-        pass
+    # Detect Android/iOS mobile sessions via capabilities
+    # and execute maximize_window ONLY on desktop browsers
+    capabilities = getattr(driver_instance, "capabilities", {}) or {}
+    platform_name = str(
+        capabilities.get("platformName") or capabilities.get("platform") or ""
+    ).lower()
+    is_mobile = any(
+        m in platform_name for m in ["android", "ios", "iphone", "ipad", "mobile"]
+    ) or bool(capabilities.get("mobileName") or capabilities.get("deviceName"))
+
+    if not is_mobile:
+        try:
+            driver_instance.maximize_window()
+        except Exception:
+            pass
 
     driver_instance.implicitly_wait(5)
 

@@ -22,6 +22,7 @@ class OpinionPage(BasePage):
     Responsibilities:
       - Navigate to the Opinion section
       - Verify the page is in Spanish using multi-indicator evaluation
+      - Detect anti-bot / access restriction notices
       - Extract article metadata (links, titles, image URLs)
 
     Args:
@@ -59,6 +60,31 @@ class OpinionPage(BasePage):
         self.driver.get(OPINION_URL)
         self.accept_cookies()
         return self
+
+    def is_anti_bot_present(self) -> bool:
+        """Check if the page currently displays an anti-bot or access restriction block.
+
+        Detects Cloudflare, rate limit, or temporary access restriction notices
+        that occasionally target mobile cloud grid IPs.
+
+        Returns:
+            True if an anti-bot restriction marker is detected.
+        """
+        page_source = self.driver.page_source.lower()
+        title = self.driver.title.lower()
+        anti_bot_markers = [
+            "access is temporarily restricted",
+            "acceso restringido",
+            "unusual traffic",
+            "captcha",
+            "just a moment...",
+            "atención al usuario",
+            "challenge-running",
+        ]
+        detected = any(marker in page_source or marker in title for marker in anti_bot_markers)
+        if detected:
+            logger.warning("⚠ Anti-bot / access restriction detected on page")
+        return detected
 
     def is_in_spanish(self) -> bool:
         """Verify the page content is displayed in Spanish using multiple indicators.
@@ -102,7 +128,7 @@ class OpinionPage(BasePage):
         # 4. Page Source / Decoded Text Indicators (handles HTML entities & Safari raw source)
         page_source = self.driver.page_source.lower()
         spanish_keywords = [
-            "opinión", "opinion", "&oacute;n",
+            "opinión", "opinion", "&bcnico;n", "&oacute;n",
             "editoriales", "tribunas", "columnas", "cartas al director"
         ]
         found = any(keyword in page_source for keyword in spanish_keywords)

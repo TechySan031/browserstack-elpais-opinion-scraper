@@ -11,6 +11,7 @@ parallel sessions (3 desktop + 2 mobile browsers).
 """
 
 import logging
+import time
 
 import pytest
 
@@ -94,7 +95,18 @@ def test_scrape_elpais_opinion_articles(driver):
         logger.info("=" * 60)
 
         article_links = opinion_page.get_article_links(count=ARTICLE_COUNT)
-        assert len(article_links) > 0, "No articles found on the Opinion page"
+
+        # Anti-bot detection & retry strategy for mobile cloud grid IPs (e.g. Safari iPhone)
+        if not article_links or opinion_page.is_anti_bot_present():
+            logger.warning(
+                "⚠ Initial article extraction returned 0 links or anti-bot restriction detected. "
+                "Waiting 4s and retrying navigation once..."
+            )
+            time.sleep(4)
+            opinion_page.navigate()
+            article_links = opinion_page.get_article_links(count=ARTICLE_COUNT)
+
+        assert len(article_links) > 0, "No articles found on the Opinion page after retry"
 
         logger.info("Found %d articles to process", len(article_links))
 
