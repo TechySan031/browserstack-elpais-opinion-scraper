@@ -1,5 +1,15 @@
 {
   "venvPath": ".",
   "venv": ".venv",
-  "typeCheckingMode": "basic"
+  "pythonPath": ".venv/Scripts/python.exe",
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "pythonPath": ".venv/Scripts/python.exe",
+      "extraPaths": [
+        ".",
+        ".venv/Lib/site-packages"
+      ]
+    }
+  ]
 }
