@@ -6,6 +6,7 @@ article links, titles, and cover image URLs from the listing grid.
 
 import logging
 
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 
@@ -65,7 +66,7 @@ class OpinionPage(BasePage):
         """Check if the page currently displays an anti-bot or access restriction block.
 
         Detects Cloudflare, rate limit, or temporary access restriction notices
-        that occasionally target mobile cloud grid IPs.
+        that occasionally target mobile or desktop cloud grid IPs.
 
         Returns:
             True if an anti-bot restriction marker is detected.
@@ -76,10 +77,14 @@ class OpinionPage(BasePage):
             "access is temporarily restricted",
             "acceso restringido",
             "unusual traffic",
+            "verification required",
+            "please verify",
+            "verificación requerida",
             "captcha",
             "just a moment...",
             "atención al usuario",
             "challenge-running",
+            "cloudflare",
         ]
         detected = any(marker in page_source or marker in title for marker in anti_bot_markers)
         if detected:
@@ -143,7 +148,7 @@ class OpinionPage(BasePage):
     def get_article_links(self, count: int = 5) -> list[dict[str, str | None]]:
         """Extract article metadata from the first N articles on the listing page.
 
-        Uses fallback locator chains to guarantee extraction across different card formats.
+        Uses explicit WebDriverWait to ensure at least `count` article elements are rendered.
 
         Args:
             count: Number of articles to fetch (default: 5).
@@ -151,7 +156,18 @@ class OpinionPage(BasePage):
         Returns:
             List of dicts with keys: title, url, image_url.
         """
-        articles = self.wait_for_elements(*self.ARTICLE_CONTAINERS)
+        try:
+            articles = self.wait.until(
+                lambda d: d.find_elements(*self.ARTICLE_CONTAINERS)
+                if len(d.find_elements(*self.ARTICLE_CONTAINERS)) >= count
+                else False
+            )
+        except TimeoutException:
+            logger.warning(
+                "Timeout waiting for at least %d article elements, evaluating currently loaded elements",
+                count,
+            )
+            articles = self.driver.find_elements(*self.ARTICLE_CONTAINERS)
 
         if not articles:
             logger.error("No articles found on the Opinion page")

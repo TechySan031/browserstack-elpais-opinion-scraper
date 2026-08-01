@@ -10,6 +10,7 @@ Designed to run identically across local Chrome and 5 BrowserStack
 parallel sessions (3 desktop + 2 mobile browsers).
 """
 
+import json
 import logging
 import time
 
@@ -28,14 +29,12 @@ ARTICLE_COUNT = 5
 def _set_browserstack_session_name(driver, name: str) -> None:
     """Set the session name in the BrowserStack dashboard.
 
-    Only executes when running on BrowserStack — fails silently
-    during local execution.
+    Uses json.dumps() to guarantee valid JSON payload format.
+    Fails silently during local non-BrowserStack execution.
     """
     try:
-        driver.execute_script(
-            f'browserstack_executor: {{"action": "setSessionName", '
-            f'"arguments": {{"name": "{name}"}}}}'
-        )
+        payload = json.dumps({"action": "setSessionName", "arguments": {"name": name}})
+        driver.execute_script(f"browserstack_executor: {payload}")
     except Exception:
         pass  # Not on BrowserStack — expected during local runs
 
@@ -43,14 +42,16 @@ def _set_browserstack_session_name(driver, name: str) -> None:
 def _set_browserstack_status(driver, status: str, reason: str) -> None:
     """Set the session status (passed/failed) in the BrowserStack dashboard.
 
-    Only executes when running on BrowserStack — fails silently
-    during local execution.
+    Uses json.dumps() to sanitize special characters and guarantee valid JSON format.
+    Fails silently during local non-BrowserStack execution.
     """
     try:
-        driver.execute_script(
-            f'browserstack_executor: {{"action": "setSessionStatus", '
-            f'"arguments": {{"status": "{status}", "reason": "{reason}"}}}}'
-        )
+        safe_reason = reason.replace('"', "'").replace("\n", " ")[:250] if reason else ""
+        payload = json.dumps({
+            "action": "setSessionStatus",
+            "arguments": {"status": status, "reason": safe_reason},
+        })
+        driver.execute_script(f"browserstack_executor: {payload}")
     except Exception:
         pass  # Not on BrowserStack — expected during local runs
 
@@ -96,17 +97,27 @@ def test_scrape_elpais_opinion_articles(driver):
 
         article_links = opinion_page.get_article_links(count=ARTICLE_COUNT)
 
-        # Anti-bot detection & retry strategy for mobile cloud grid IPs (e.g. Safari iPhone)
-        if not article_links or opinion_page.is_anti_bot_present():
+        # Anti-bot detection & retry strategy for cloud grid IPs (e.g. macOS Safari / Safari iPhone)
+        if len(article_links) < ARTICLE_COUNT or opinion_page.is_anti_bot_present():
             logger.warning(
-                "⚠ Initial article extraction returned 0 links or anti-bot restriction detected. "
-                "Waiting 4s and retrying navigation once..."
+                "⚠ Article extraction incomplete (%d/%d) or anti-bot restriction detected. "
+                "Waiting 4s and retrying navigation once...",
+                len(article_links),
+                ARTICLE_COUNT,
             )
             time.sleep(4)
             opinion_page.navigate()
             article_links = opinion_page.get_article_links(count=ARTICLE_COUNT)
 
-        assert len(article_links) > 0, "No articles found on the Opinion page after retry"
+        # If anti-bot challenge is still present after retry, fail with a descriptive exception
+        if opinion_page.is_anti_bot_present():
+            raise AssertionError(
+                "El País anti-bot verification challenge triggered: Access is temporarily restricted on this grid IP."
+            )
+
+        assert len(article_links) >= ARTICLE_COUNT, (
+            f"Expected at least {ARTICLE_COUNT} articles on Opinion section, but extracted {len(article_links)}."
+        )
 
         logger.info("Found %d articles to process", len(article_links))
 
@@ -120,9 +131,9 @@ def test_scrape_elpais_opinion_articles(driver):
         articles: list[Article] = []
         article_page = ArticlePage(driver)
 
-        for i, link in enumerate(article_links, start=1):
+        for i, link in enumerate(article_links[:ARTICLE_COUNT], start=1):
             logger.info("-" * 40)
-            logger.info("Processing article %d of %d", i, len(article_links))
+            logger.info("Processing article %d of %d", i, ARTICLE_COUNT)
             logger.info("-" * 40)
 
             # Navigate to article page
